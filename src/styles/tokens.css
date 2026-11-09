@@ -1,0 +1,84 @@
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/Inter.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/SpaceGrotesk.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/Montserrat.woff2') format('woff2');
+}
+
+:root {
+  /* Deep teal and orange are drawn from the IDB Bali site/logo assets. */
+  --navy-950: #012b3b;
+  --navy-900: #024d71;
+  --navy-800: #075d84;
+  --navy-700: #0b6f98;
+  --navy-600: #1686ad;
+
+  --blue-700: #024d71;
+  --blue-600: #0b6f98;
+  --blue-500: #2a8eb3;
+  --blue-100: #dcecf1;
+  --blue-050: #edf6f8;
+
+  --ink: #1f1f1f;
+  --ink-2: #3c4649;
+  --muted: #5f6b6f;
+  --muted-2: #879296;
+
+  --line: #dfe5e3;
+  --line-2: #c9d3d0;
+  --paper: #f4f6f5;
+  --paper-2: #e9eeed;
+  --white: #ffffff;
+
+  --green-700: #0b6b4b;
+  --green-600: #12805c;
+  --green-050: #e7f6ef;
+  --amber-700: #8a4500;
+  --amber-600: #a95a00;
+  --amber-500: #f17711;
+  --amber-050: #fff1e4;
+  --red-700: #a01b12;
+  --red-600: #c02b1f;
+  --red-050: #fdeceb;
+
+  --brand-primary: #024d71;
+  --brand-primary-dark: #012f43;
+  --brand-accent: #f17711;
+  --brand-accent-dark: #a94a00;
+  --brand-accent-soft: #fff1e4;
+  --brand-paper: #f4f6f5;
+  --brand-ink: #1f1f1f;
+
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius: 14px;
+  --radius-lg: 20px;
+
+  --shadow-1: 0 1px 2px rgba(1, 43, 59, 0.05);
+  --shadow-2: 0 20px 44px -26px rgba(1, 43, 59, 0.38);
+  --shadow-3: 0 30px 70px -40px rgba(1, 43, 59, 0.55);
+
+  --font-ui: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Montserrat', 'Space Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+  --sidebar-w: 256px;
+  --page-max: 1280px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}

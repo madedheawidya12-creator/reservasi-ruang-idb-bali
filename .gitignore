@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Local review artifacts
+.review/
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
