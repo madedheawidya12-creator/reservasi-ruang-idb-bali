@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
+import { initials } from '../lib/format'
 import { useStore } from '../lib/store'
 import { Icon, type IconName } from './Icon'
 import { Avatar, Logo } from './ui'
@@ -107,6 +108,7 @@ export function AppShell({
           { to: '/admin', label: 'Dashboard', icon: 'home', end: true },
           { to: '/admin/permohonan', label: 'Permohonan', icon: 'clipboard', badge: pendingForMe },
           { to: '/admin/ruang', label: 'Ruang', icon: 'building' },
+          { to: '/admin/pengaturan', label: 'Pengaturan', icon: 'settings' },
           { to: '/admin/aktivitas', label: 'Aktivitas', icon: 'activity' },
         ]
 
@@ -138,7 +140,11 @@ export function AppShell({
 
         <div className="site-header-main">
           <div className="site-header-inner">
-            <Link to={home} className="site-brand" aria-label="RuangIDB, ke beranda">
+            <Link
+              to={home}
+              className="site-brand"
+              aria-label="Institut Desain dan Bisnis Bali, RuangIDB · Reservasi ruangan kampus, ke beranda"
+            >
               <Logo />
               <span className="site-brand-text">
                 <strong>Institut Desain dan Bisnis Bali</strong>
@@ -180,7 +186,11 @@ export function AppShell({
               </Link>
 
               <details className="user-menu site-user-menu" ref={userMenuRef}>
-                <summary aria-label={`Menu akun ${currentUser.name}`}>
+                <summary
+                  aria-label={`${initials(currentUser.name)}, ${currentUser.name}, ${
+                    currentUser.email
+                  }, menu akun`}
+                >
                   <Avatar name={currentUser.name} size={32} />
                   <span className="user-menu-text">
                     <strong>{currentUser.name}</strong>

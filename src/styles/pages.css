@@ -8,6 +8,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   background: var(--white);
+  position: relative;
 }
 
 .login-brand {
@@ -15,33 +16,268 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 38px 48px 30px;
-  background: var(--navy-900);
+  padding: 48px 36px 30px;
   color: var(--white);
+  background: var(--navy-950);
 }
 
-.login-grid {
+.login-brand::before {
+  content: '';
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 78%);
-  pointer-events: none;
+  /* Foto kampus IDB Bali akan ditempatkan di sini saat tersedia */
+  background: var(--navy-950);
+  z-index: 0;
 }
 
 .login-brand::after {
   content: '';
   position: absolute;
-  right: -190px;
-  bottom: -220px;
-  width: 560px;
-  height: 560px;
-  border-radius: 50%;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15,23,42,0.55) 0%, rgba(15,23,42,0.3) 100%);
+  /* overlay biru transparan agar tulisan dan logo IDB tetap terlihat jelas */
+  z-index: 1;
+}
+
+.login-brand::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15,23,42,0.55) 0%, rgba(15,23,42,0.3) 100%);
+  /* blue gradient overlay for text readability */
+  z-index: 1;
+}
+
+.login-brand-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.login-brand .brand-logo img {
+  height: 52px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+}
+
+.login-copy {
+  margin-top: 24px;
+}
+
+.login-copy h1 {
+  color: var(--white);
+  font-size: clamp(38px, 4.5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.login-tagline {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.login-desc {
+  margin-top: 8px;
+  max-width: 44ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.login-board {
+  margin-top: auto;
+  margin-bottom: 20px;
+  padding: 12px 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 0 0 90px rgba(255, 255, 255, 0.018);
-  pointer-events: none;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(4px);
+}
+
+.login-board-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.login-board-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.login-board-name {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.login-board .ribbon-slot {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.login-board .ribbon {
+  gap: 1px;
+}
+
+.login-board .ribbon-slot.is-pending {
+  background: var(--amber-500);
+}
+
+.login-board .ribbon-slot.is-approved {
+  background: #8fb0ff;
+}
+
+.login-board-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.login-board-foot .dot.is-free {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.login-board-foot .dot.is-approved {
+  background: #8fb0ff;
+}
+
+.login-foot {
+  position: relative;
+  z-index: 2;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.01em;
+}
+
+.login-form-wrap {
+  display: grid;
+  place-items: center;
+  padding: 48px 36px 24px;
+  background: var(--white);
+  width: 100%;
+  max-width: 430px;
+}
+
+.login-form {
+  width: 100%;
+}
+
+.login-form-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.login-form-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--blue-050);
+  color: var(--blue-700);
+}
+
+.login-form-head h2 {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.login-form-head p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.login-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.demo-box {
+  margin-top: 20px;
+  padding: 12px;
+  border: 1px dashed var(--line-2);
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.demo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.demo-head h3 {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: 0;
+}
+
+.demo-head span {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.demo-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.demo-account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--paper-2);
+  font-size: 11px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.demo-account strong {
+  color: var(--ink-1);
+}
+
+.demo-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.login-help {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .login-brand-inner {
@@ -840,6 +1076,16 @@
 
 .slot-state.is-busy {
   color: var(--red-700);
+}
+
+.slot-state.is-closed,
+.slot-state.is-outside {
+  color: var(--amber-700);
+}
+
+.slot-state.is-past,
+.slot-state.is-invalid {
+  color: var(--muted);
 }
 
 .room-card-actions {
@@ -2140,6 +2386,12 @@
   background: var(--navy-600);
 }
 
+.activity-dot.action-settings_update,
+.activity-dot.action-holiday_create,
+.activity-dot.action-holiday_delete {
+  background: var(--blue-600);
+}
+
 .activity-feed strong {
   font-size: 12px;
   font-weight: 600;
@@ -2477,6 +2729,13 @@
   color: var(--navy-700);
 }
 
+.action-tag.action-settings_update,
+.action-tag.action-holiday_create,
+.action-tag.action-holiday_delete {
+  background: var(--blue-050);
+  color: var(--blue-700);
+}
+
 /* ---------- Standalone ---------- */
 .standalone {
   min-height: 100vh;
@@ -2536,6 +2795,126 @@
 
 .standalone-card .btn {
   margin-top: 22px;
+}
+
+/* ---------- Campus settings ---------- */
+.settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-field-block {
+  margin-bottom: 18px;
+}
+
+.settings-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.weekday-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.weekday-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.weekday-toggle:hover {
+  border-color: var(--blue-500);
+}
+
+.weekday-toggle.is-active {
+  border-color: var(--blue-500);
+  background: var(--blue-050);
+  color: var(--blue-700);
+}
+
+.weekday-toggle input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--blue-600);
+}
+
+.weekday-closed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--paper-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-time-grid {
+  margin-top: 2px;
+}
+
+.settings-facts {
+  margin-top: 0;
+}
+
+.settings-facts dd {
+  max-width: 62%;
+}
+
+.settings-summary .notice {
+  margin-top: 14px;
+}
+
+.settings-upcoming {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.holiday-form {
+  margin-top: 4px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.holiday-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 10px;
+}
+
+.holiday-list-head h3 {
+  font-size: 15px;
+}
+
+.holiday-list-head span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.holiday-table td {
+  vertical-align: middle;
 }
 
 /* =========================================================
@@ -2975,5 +3354,23 @@
   .room-card-actions .btn-ghost {
     background: var(--white);
     border-color: var(--line-2);
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-facts dd {
+    max-width: none;
+  }
+
+  .holiday-list-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 }

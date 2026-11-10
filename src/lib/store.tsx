@@ -7,7 +7,14 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { isPast, getConflicts, toMinutes } from './availability'
+import { isPast, toMinutes } from './availability'
+import {
+  isValidDateString,
+  isValidTime,
+  normalizeCampusSettings,
+  WEEKDAY_LABELS,
+} from './campus-settings'
+import { validateReservationRequest } from './campus-rules'
 import { inferRoomCategory } from './categories'
 import { formatDateShort, formatTimeRange, todayISO } from './format'
 import { createSeedState, DEMO_PASSWORD, ROOMS, ROOM_DATA_VERSION, USERS } from './seed'
@@ -15,6 +22,7 @@ import type {
   ActivityAction,
   AppState,
   FieldErrors,
+  Holiday,
   Reservation,
   ReservationInput,
   ReservationStatus,
@@ -79,6 +87,7 @@ function loadState(): AppState {
             ...room,
             category: room.category ?? inferRoomCategory(room),
           })),
+          settings: normalizeCampusSettings(migrated.settings),
         }
       }
     }
@@ -111,6 +120,18 @@ export type CreateResult =
 
 export type ActionResult = { ok: true; warning?: string } | { ok: false; error: string }
 
+export interface CampusSettingsInput {
+  openDays: number[]
+  openTime: string
+  closeTime: string
+}
+
+export interface HolidayInput {
+  date: string
+  name: string
+  note?: string
+}
+
 interface StoreValue {
   state: AppState
   currentUser: User | null
@@ -122,6 +143,9 @@ interface StoreValue {
   decideReservation: (id: string, decision: 'approved' | 'rejected', reason?: string) => ActionResult
   saveRoom: (room: Room) => ActionResult
   setRoomStatus: (id: string, status: RoomStatus) => ActionResult
+  updateCampusSettings: (input: CampusSettingsInput) => ActionResult
+  addHoliday: (input: HolidayInput) => ActionResult
+  deleteHoliday: (id: string) => ActionResult
   getRoom: (id: string) => Room | undefined
   getUser: (id: string) => User | undefined
 }
@@ -193,44 +217,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (input) => {
       if (!currentUser) return { ok: false, error: 'Sesi berakhir. Silakan masuk kembali.' }
 
-      const fields: FieldErrors = {}
-      const room = state.rooms.find((candidate) => candidate.id === input.roomId)
-
-      if (!room) fields.roomId = 'Pilih ruang yang ingin diajukan.'
-      if (!input.date) fields.date = 'Tentukan tanggal kegiatan.'
-      if (!input.start) fields.start = 'Tentukan waktu mulai.'
-      if (!input.end) fields.end = 'Tentukan waktu selesai.'
-      if (!input.purpose.trim() || input.purpose.trim().length < 5) {
-        fields.purpose = 'Tuliskan tujuan kegiatan, minimal 5 karakter.'
-      }
-      if (!Number.isFinite(input.participants) || input.participants < 1) {
-        fields.participants = 'Isi jumlah peserta, minimal 1 orang.'
-      }
-
-      if (room && room.capacity !== undefined && input.participants > room.capacity) {
-        fields.participants = `Jumlah peserta melebihi kapasitas ${room.name} (${room.capacity} orang).`
-      }
-
-      if (input.start && input.end) {
-        if (toMinutes(input.end) <= toMinutes(input.start)) {
-          fields.end = 'Waktu selesai harus lebih lambat dari waktu mulai.'
-        } else if (room && (toMinutes(input.start) < toMinutes(room.open) || toMinutes(input.end) > toMinutes(room.close))) {
-          fields.end = `Ruang tersedia antara pukul ${room.open.replace(':', '.')} dan ${room.close.replace(':', '.')}.`
-        }
-      }
-
-      if (room && room.status === 'inactive') {
-        fields.roomId = 'Ruang sedang dinonaktifkan dan belum dapat menerima permohonan baru.'
-      }
-
-      if (input.date && isPast(input.date, input.end || '23:59')) {
-        fields.date = 'Tanggal dan waktu kegiatan sudah lewat.'
-      }
-
-      if (Object.keys(fields).length > 0 || !room) {
-        return { ok: false, error: 'Periksa kembali isian yang ditandai.', fields }
-      }
-
+      // Idempotensi dicek lebih dahulu agar pengiriman ulang tidak membuat
+      // permohonan ganda ketika waktu slot sudah berubah.
       const duplicate = state.reservations.find(
         (reservation) => reservation.idempotencyKey === input.idempotencyKey,
       )
@@ -238,30 +226,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return { ok: true, reservation: duplicate, duplicate: true }
       }
 
-      const conflicts = getConflicts(
-        state.reservations,
-        input.roomId,
-        input.date,
-        input.start,
-        input.end,
-      )
-      if (conflicts.length > 0) {
+      // Ini adalah jalur otoritatif "backend" pada prototipe berbasis localStorage.
+      // UI boleh menyembunyikan tombol, tetapi store tetap menolak data yang tidak
+      // memenuhi aturan kampus.
+      const validation = validateReservationRequest(state, input)
+      if (!validation.ok || !validation.room) {
         return {
           ok: false,
-          error: `Ruang sudah dipakai pada ${formatTimeRange(conflicts[0]!.start, conflicts[0]!.end)} (${conflicts[0]!.id}). Pilih waktu lain.`,
-          fields: { start: 'Slot ini sudah terisi reservasi yang disetujui.' },
+          error: validation.error ?? 'Periksa kembali isian yang ditandai.',
+          fields: validation.fields,
         }
       }
 
-      const pendingConflicts = getConflicts(
-        state.reservations,
-        input.roomId,
-        input.date,
-        input.start,
-        input.end,
-        { status: 'pending' },
-      )
-
+      const room = validation.room
       const reservation: Reservation = {
         id: nextReservationId(state.reservations, input.date),
         userId: currentUser.id,
@@ -300,12 +277,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reservation,
         duplicate: false,
         warning:
-          pendingConflicts.length > 0
-            ? `Ada ${pendingConflicts.length} permohonan lain yang masih menunggu di slot ini. Slot belum final sampai admin memutuskan.`
+          validation.pendingConflicts.length > 0
+            ? `Ada ${validation.pendingConflicts.length} permohonan lain yang masih menunggu di slot ini. Slot belum final sampai admin memutuskan.`
             : undefined,
       }
     },
-    [currentUser, pushLog, state.reservations, state.rooms],
+    [currentUser, pushLog, state],
   )
 
   const cancelReservation: StoreValue['cancelReservation'] = useCallback(
@@ -368,21 +345,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       if (decision === 'approved') {
-        const conflicts = getConflicts(
-          state.reservations,
-          reservation.roomId,
-          reservation.date,
-          reservation.start,
-          reservation.end,
-          { ignoreId: reservation.id },
-        )
-        if (conflicts.length > 0) {
+        // Pemeriksaan ulang saat admin menyetujui: konflik, hari libur, jam
+        // operasional, tanggal lewat, kapasitas, dan status ruang.
+        const validation = validateReservationRequest(state, reservation, {
+          ignoreReservationId: reservation.id,
+        })
+        if (!validation.ok) {
           return {
             ok: false,
-            error: `Jadwal bertabrakan dengan ${conflicts[0]!.id} (${formatTimeRange(
-              conflicts[0]!.start,
-              conflicts[0]!.end,
-            )}). Tinjau ulang atau tolak permohonan ini.`,
+            error: validation.error ?? 'Permohonan tidak dapat disetujui. Periksa kembali aturan kampus.',
           }
         }
       }
@@ -417,7 +388,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       return { ok: true }
     },
-    [currentUser, pushLog, state.reservations],
+    [currentUser, pushLog, state],
   )
 
   const saveRoom: StoreValue['saveRoom'] = useCallback(
@@ -511,6 +482,149 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [currentUser, pushLog, state.rooms, state.reservations],
   )
 
+  const updateCampusSettings: StoreValue['updateCampusSettings'] = useCallback(
+    (input) => {
+      if (!currentUser || currentUser.role !== 'admin') {
+        return { ok: false, error: 'Hanya admin kampus yang dapat mengubah pengaturan kampus.' }
+      }
+
+      const openDays = [
+        ...new Set(
+          input.openDays.filter(
+            (day) => Number.isInteger(day) && day >= 1 && day <= 6,
+          ),
+        ),
+      ].sort((a, b) => a - b)
+
+      if (openDays.length === 0) {
+        return { ok: false, error: 'Pilih minimal satu hari operasional Senin–Sabtu.' }
+      }
+      if (!isValidTime(input.openTime) || !isValidTime(input.closeTime)) {
+        return { ok: false, error: 'Format jam operasional tidak valid.' }
+      }
+      if (toMinutes(input.openTime) >= toMinutes(input.closeTime)) {
+        return { ok: false, error: 'Jam tutup harus lebih lambat dari jam buka.' }
+      }
+
+      setState((previous) => {
+        const draft: AppState = {
+          ...previous,
+          settings: {
+            ...previous.settings,
+            openDays,
+            openTime: input.openTime,
+            closeTime: input.closeTime,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+        pushLog(
+          draft,
+          currentUser.name,
+          'admin',
+          'settings_update',
+          'Pengaturan kampus',
+          `Mengatur hari operasional ${openDays
+            .map((day) => WEEKDAY_LABELS[day])
+            .join(', ')} dan jam ${input.openTime.replace(':', '.')}–${input.closeTime.replace(
+            ':',
+            '.',
+          )}. Minggu tetap tutup.`,
+        )
+        return draft
+      })
+
+      return { ok: true }
+    },
+    [currentUser, pushLog],
+  )
+
+  const addHoliday: StoreValue['addHoliday'] = useCallback(
+    (input) => {
+      if (!currentUser || currentUser.role !== 'admin') {
+        return { ok: false, error: 'Hanya admin kampus yang dapat menambah hari libur.' }
+      }
+      if (!isValidDateString(input.date)) {
+        return { ok: false, error: 'Pilih tanggal hari libur yang valid.' }
+      }
+      const name = input.name.trim()
+      if (name.length < 3) {
+        return { ok: false, error: 'Tuliskan nama hari libur minimal 3 karakter.' }
+      }
+      if (state.settings.holidays.some((holiday) => holiday.date === input.date)) {
+        return {
+          ok: false,
+          error: `Tanggal ${formatDateShort(input.date)} sudah terdaftar sebagai hari libur.`,
+        }
+      }
+
+      const holiday: Holiday = {
+        id: `holiday-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        date: input.date,
+        name,
+        note: input.note?.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      }
+
+      setState((previous) => {
+        const draft: AppState = {
+          ...previous,
+          settings: {
+            ...previous.settings,
+            holidays: [...previous.settings.holidays, holiday].sort((a, b) =>
+              a.date.localeCompare(b.date),
+            ),
+            updatedAt: new Date().toISOString(),
+          },
+        }
+        pushLog(
+          draft,
+          currentUser.name,
+          'admin',
+          'holiday_create',
+          formatDateShort(holiday.date),
+          `Menambahkan hari libur ${holiday.name} pada ${formatDateShort(holiday.date)}.`,
+        )
+        return draft
+      })
+
+      return { ok: true }
+    },
+    [currentUser, pushLog, state.settings.holidays],
+  )
+
+  const deleteHoliday: StoreValue['deleteHoliday'] = useCallback(
+    (id) => {
+      if (!currentUser || currentUser.role !== 'admin') {
+        return { ok: false, error: 'Hanya admin kampus yang dapat menghapus hari libur.' }
+      }
+      const holiday = state.settings.holidays.find((candidate) => candidate.id === id)
+      if (!holiday) return { ok: false, error: 'Hari libur tidak ditemukan.' }
+
+      setState((previous) => {
+        const draft: AppState = {
+          ...previous,
+          settings: {
+            ...previous.settings,
+            holidays: previous.settings.holidays.filter((candidate) => candidate.id !== id),
+            updatedAt: new Date().toISOString(),
+          },
+        }
+        pushLog(
+          draft,
+          currentUser.name,
+          'admin',
+          'holiday_delete',
+          formatDateShort(holiday.date),
+          `Menghapus hari libur ${holiday.name} pada ${formatDateShort(holiday.date)}.`,
+        )
+        return draft
+      })
+
+      return { ok: true }
+    },
+    [currentUser, pushLog, state.settings.holidays],
+  )
+
   const value = useMemo<StoreValue>(
     () => ({
       state,
@@ -523,6 +637,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       decideReservation,
       saveRoom,
       setRoomStatus,
+      updateCampusSettings,
+      addHoliday,
+      deleteHoliday,
       getRoom: (id) => state.rooms.find((room) => room.id === id),
       getUser: (id) => USERS.find((user) => user.id === id),
     }),
@@ -537,6 +654,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       decideReservation,
       saveRoom,
       setRoomStatus,
+      updateCampusSettings,
+      addHoliday,
+      deleteHoliday,
     ],
   )
 

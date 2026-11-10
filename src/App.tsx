@@ -18,6 +18,7 @@ import { AdminRequests } from './pages/admin/Requests'
 import { AdminRequestDetail } from './pages/admin/RequestDetail'
 import { AdminRooms } from './pages/admin/Rooms'
 import { AdminActivity } from './pages/admin/Activity'
+import { AdminSettings } from './pages/admin/Settings'
 
 function titleFor(pathname: string, variant: 'student' | 'admin'): string {
   if (variant === 'student') {
@@ -35,6 +36,7 @@ function titleFor(pathname: string, variant: 'student' | 'admin'): string {
   if (pathname.startsWith('/admin/permohonan/')) return 'Detail permohonan'
   if (pathname === '/admin/permohonan') return 'Kelola permohonan'
   if (pathname === '/admin/ruang') return 'Kelola ruang'
+  if (pathname === '/admin/pengaturan') return 'Pengaturan kampus'
   if (pathname === '/admin/aktivitas') return 'Log aktivitas'
   return 'RuangIDB'
 }
@@ -147,6 +149,7 @@ export default function App() {
             <Route path="permohonan" element={<AdminRequests />} />
             <Route path="permohonan/:id" element={<AdminRequestDetail />} />
             <Route path="ruang" element={<AdminRooms />} />
+            <Route path="pengaturan" element={<AdminSettings />} />
             <Route path="aktivitas" element={<AdminActivity />} />
           </Route>
         </Route>

@@ -321,22 +321,11 @@ export function AdminRooms() {
                 placeholder="Kosongkan jika tidak ada"
               />
             </Field>
-            <Field label="Jam buka" htmlFor="room-open" required>
-              <input
-                id="room-open"
-                type="time"
-                value={draft.open}
-                onChange={(event) => update('open', event.target.value)}
-              />
-            </Field>
-            <Field label="Jam tutup" htmlFor="room-close" required>
-              <input
-                id="room-close"
-                type="time"
-                value={draft.close}
-                onChange={(event) => update('close', event.target.value)}
-              />
-            </Field>
+            <p className="notice notice-info span-2">
+              <Icon name="info" size={16} />
+              Jam layanan ruangan mengikuti pengaturan operasional kampus. Ubah jam buka/tutup
+              melalui menu Pengaturan agar berlaku untuk semua ruangan.
+            </p>
             <Field
               label="Fasilitas"
               htmlFor="room-facilities"

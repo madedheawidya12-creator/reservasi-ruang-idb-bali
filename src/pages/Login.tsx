@@ -1,14 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { AvailabilityRibbon } from '../components/AvailabilityRibbon'
+import { useStore } from '../lib/store'
 import { Icon } from '../components/Icon'
 import { Field, Logo } from '../components/ui'
-import { buildSlots } from '../lib/availability'
-import { formatDateLong, todayISO } from '../lib/format'
-import { DEMO_PASSWORD, useStore } from '../lib/store'
+import { DEMO_PASSWORD } from '../lib/store'
 
 export function Login() {
-  const { currentUser, login, state } = useStore()
+  const store = useStore()
+  const { currentUser } = store
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -33,7 +32,7 @@ export function Login() {
       return
     }
     setBusy(true)
-    const result = login(email, password)
+    const result = store.login(email, password)
     setBusy(false)
     if (!result.ok) {
       setError(result.error)
@@ -48,13 +47,9 @@ export function Login() {
     setError(null)
   }
 
-  const previewRooms = state.rooms.slice(0, 3)
-  const today = todayISO()
-
   return (
     <main className="login">
       <section className="login-brand" aria-label="Tentang RuangIDB">
-        <div className="login-grid" aria-hidden="true" />
         <div className="login-brand-inner">
           <Logo plate />
           <div className="login-copy">
@@ -69,36 +64,7 @@ export function Login() {
               kampus mengajukan peminjaman ruangan secara lebih mudah, teratur, dan transparan.
             </p>
           </div>
-
-          <div
-            className="login-board"
-            role="group"
-            aria-label="Contoh ketersediaan ruang hari ini"
-          >
-            <div className="login-board-head">
-              <span>Ketersediaan hari ini</span>
-              <span>{formatDateLong(today)}</span>
-            </div>
-            {previewRooms.map((room) => (
-              <div className="login-board-row" key={room.id}>
-                <span className="login-board-name">{room.name}</span>
-                <AvailabilityRibbon slots={buildSlots(state.reservations, room.id, today)} compact />
-              </div>
-            ))}
-            <div className="login-board-foot">
-              <span>
-                <i className="dot is-free" /> Tersedia
-              </span>
-              <span>
-                <i className="dot is-pending" /> Menunggu
-              </span>
-              <span>
-                <i className="dot is-approved" /> Terpakai
-              </span>
-            </div>
-          </div>
         </div>
-        <p className="login-foot">Institut Desain dan Bisnis Bali</p>
       </section>
 
       <section className="login-form-wrap">

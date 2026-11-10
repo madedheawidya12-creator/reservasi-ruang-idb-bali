@@ -1,3 +1,4 @@
+import { createDefaultCampusSettings } from './campus-settings'
 import { formatDateShort, shiftDate } from './format'
 import type { ActivityLog, AppState, Reservation, Room, User } from './types'
 
@@ -574,6 +575,7 @@ export function createSeedState(): AppState {
     })),
     reservations,
     logs: logs.sort((a, b) => b.at.localeCompare(a.at)),
+    settings: createDefaultCampusSettings(),
     session: null,
     roomDataVersion: ROOM_DATA_VERSION,
   }

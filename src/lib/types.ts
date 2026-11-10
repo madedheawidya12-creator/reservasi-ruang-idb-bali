@@ -68,6 +68,23 @@ export interface Reservation {
   idempotencyKey: string
 }
 
+export interface Holiday {
+  id: string
+  date: string
+  name: string
+  note?: string
+  createdAt: string
+}
+
+export interface CampusSettings {
+  /** Hari operasional Senin–Sabtu. Minggu selalu tutup. 0 = Minggu, 1 = Senin, ... 6 = Sabtu. */
+  openDays: number[]
+  openTime: string
+  closeTime: string
+  holidays: Holiday[]
+  updatedAt: string
+}
+
 export type ActivityAction =
   | 'create'
   | 'approve'
@@ -76,6 +93,9 @@ export type ActivityAction =
   | 'room_create'
   | 'room_update'
   | 'room_status'
+  | 'settings_update'
+  | 'holiday_create'
+  | 'holiday_delete'
 
 export interface ActivityLog {
   id: string
@@ -91,6 +111,7 @@ export interface AppState {
   rooms: Room[]
   reservations: Reservation[]
   logs: ActivityLog[]
+  settings: CampusSettings
   session: string | null
   roomDataVersion?: number
 }

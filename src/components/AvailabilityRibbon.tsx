@@ -1,4 +1,4 @@
-import { SLOT_COUNT, slotLabel, toTime, type Slot } from '../lib/availability'
+import { slotLabel, toTime, type Slot } from '../lib/availability'
 
 export function AvailabilityRibbon({
   slots,
@@ -12,10 +12,18 @@ export function AvailabilityRibbon({
   label?: string
 }) {
   const free = slots.filter((slot) => slot.state === 'free').length
+  const first = slots[0]
+  const last = slots[slots.length - 1]
+  const startLabel = first ? toTime(first.start).replace(':', '.') : '08.00'
+  const endLabel = last ? toTime(last.end).replace(':', '.') : '20.00'
   const summary =
-    label ??
-    `${free} dari ${SLOT_COUNT} slot tersedia, pukul 08.00 sampai 20.00`
-  const axis = [8, 10, 12, 14, 16, 18, 20]
+    label ?? `${free} dari ${slots.length} slot tersedia, pukul ${startLabel} sampai ${endLabel}`
+  const axis: number[] = []
+  if (first && last) {
+    const firstHour = Math.ceil(first.start / 60)
+    const lastHour = Math.floor(last.end / 60)
+    for (let hour = firstHour; hour <= lastHour; hour += 2) axis.push(hour)
+  }
 
   return (
     <div className={`ribbon-wrap ${compact ? 'is-compact' : ''}`}>

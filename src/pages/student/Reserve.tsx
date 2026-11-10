@@ -4,6 +4,12 @@ import { Icon } from '../../components/Icon'
 import { RoomThumb } from '../../components/RoomThumb'
 import { Field, PageHeader, StatusBadge, useToast } from '../../components/ui'
 import { getConflicts } from '../../lib/availability'
+import {
+  campusClosedReason,
+  CONFLICT_MESSAGE,
+  getRoomAvailability,
+  operatingHoursLabel,
+} from '../../lib/campus-rules'
 import { formatDateLong, formatTimeRange, todayISO } from '../../lib/format'
 import { ROOM_UNKNOWN, roomCapacity, roomCapacityLimit, roomLocation, roomSubtitle } from '../../lib/room-display'
 import { useCurrentUser, useStore } from '../../lib/store'
@@ -51,10 +57,21 @@ export function Reserve() {
     return getConflicts(state.reservations, room.id, date, start, end, { status: 'pending' })
   }, [room, date, start, end, state.reservations])
 
+  const closedReason = date ? campusClosedReason(state.settings, date) : null
+  const availability = room
+    ? getRoomAvailability(state.settings, state.reservations, room, date, start, end)
+    : null
+  const canSubmit = !closedReason && availability?.state === 'free'
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
     setErrors({})
+
+    if (closedReason) {
+      setFormError(closedReason)
+      return
+    }
 
     const result = createReservation({
       roomId,
@@ -201,8 +218,8 @@ export function Reserve() {
                     type="time"
                     value={start}
                     step={1800}
-                    min={room?.open ?? '08:00'}
-                    max={room?.close ?? '20:00'}
+                    min={state.settings.openTime}
+                    max={state.settings.closeTime}
                     onChange={(event) => setStart(event.target.value)}
                     aria-invalid={Boolean(errors.start)}
                   />
@@ -213,8 +230,8 @@ export function Reserve() {
                     type="time"
                     value={end}
                     step={1800}
-                    min={room?.open ?? '08:00'}
-                    max={room?.close ?? '20:00'}
+                    min={state.settings.openTime}
+                    max={state.settings.closeTime}
                     onChange={(event) => setEnd(event.target.value)}
                     aria-invalid={Boolean(errors.end)}
                   />
@@ -222,11 +239,34 @@ export function Reserve() {
               </div>
             </div>
 
-            {conflicts.length > 0 ? (
+            {closedReason ? (
               <p className="notice notice-error" role="status">
                 <Icon name="alert" size={16} />
-                Jadwal bertabrakan dengan reservasi {conflicts[0]!.id} (
-                {formatTimeRange(conflicts[0]!.start, conflicts[0]!.end)}). Pilih waktu lain.
+                {closedReason}
+              </p>
+            ) : availability?.state === 'busy' || conflicts.length > 0 ? (
+              <p className="notice notice-error" role="status">
+                <Icon name="alert" size={16} />
+                {CONFLICT_MESSAGE}
+                {conflicts[0] ? (
+                  <span>
+                    {' '}
+                    ({conflicts[0].id}, {formatTimeRange(conflicts[0].start, conflicts[0].end)})
+                  </span>
+                ) : null}
+              </p>
+            ) : availability?.state === 'outside' ? (
+              <p className="notice notice-warning" role="status">
+                <Icon name="clock" size={16} />
+                {availability.reason ??
+                  `Pilih waktu di dalam jam operasional kampus (${operatingHoursLabel(
+                    state.settings,
+                  )}).`}
+              </p>
+            ) : availability?.state === 'past' ? (
+              <p className="notice notice-error" role="status">
+                <Icon name="alert" size={16} />
+                Tanggal dan waktu kegiatan sudah lewat. Silakan pilih jadwal lain.
               </p>
             ) : pendingNearby.length > 0 ? (
               <p className="notice notice-warning" role="status">
@@ -320,11 +360,13 @@ export function Reserve() {
             ) : null}
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                Kirim Pengajuan Peminjaman
-              </button>
+              {!closedReason ? (
+                <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
+                  {canSubmit ? 'Kirim Pengajuan Peminjaman' : 'Periksa Jadwal Terlebih Dahulu'}
+                </button>
+              ) : null}
               <Link to="/app/ruang" className="btn btn-ghost">
-                Batal
+                {closedReason ? 'Pilih tanggal atau ruang lain' : 'Batal'}
               </Link>
             </div>
           </section>
@@ -365,8 +407,9 @@ export function Reserve() {
             <div className="summary-note">
               <Icon name="info" size={16} />
               <p>
-                Status awal adalah <strong>Menunggu persetujuan</strong>. Ruang baru teralokasi setelah
-                admin menyetujui.
+                Jam layanan kampus {operatingHoursLabel(state.settings)}. Minggu dan hari libur
+                kampus tutup. Status awal adalah <strong>Menunggu persetujuan</strong>; ruang baru
+                teralokasi setelah admin menyetujui.
               </p>
             </div>
           </section>

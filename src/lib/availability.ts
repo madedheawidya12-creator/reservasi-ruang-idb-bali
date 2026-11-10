@@ -51,7 +51,16 @@ export function getConflicts(
   )
 }
 
-export function buildSlots(reservations: Reservation[], roomId: string, date: string): Slot[] {
+export function buildSlots(
+  reservations: Reservation[],
+  roomId: string,
+  date: string,
+  options: { open?: string; close?: string } = {},
+): Slot[] {
+  const startMinutes = toMinutes(options.open ?? toTime(DAY_START))
+  const endMinutes = toMinutes(options.close ?? toTime(DAY_END))
+  const count = Math.max(0, Math.floor((endMinutes - startMinutes) / SLOT_MINUTES))
+
   const dayReservations = reservations.filter(
     (reservation) =>
       reservation.roomId === roomId &&
@@ -59,8 +68,8 @@ export function buildSlots(reservations: Reservation[], roomId: string, date: st
       (reservation.status === 'approved' || reservation.status === 'pending'),
   )
 
-  return Array.from({ length: SLOT_COUNT }, (_, index) => {
-    const start = DAY_START + index * SLOT_MINUTES
+  return Array.from({ length: count }, (_, index) => {
+    const start = startMinutes + index * SLOT_MINUTES
     const end = start + SLOT_MINUTES
     const approved = dayReservations.some(
       (reservation) =>
@@ -86,7 +95,10 @@ export function firstFreeRange(slots: Slot[]): { start: string; end: string } | 
       return { start: toTime(start), end: toTime(slot.start) }
     }
   }
-  if (start !== null) return { start: toTime(start), end: toTime(DAY_END) }
+  if (start !== null) {
+    const lastSlot = slots[slots.length - 1]
+    return { start: toTime(start), end: toTime(lastSlot?.end ?? DAY_END) }
+  }
   return null
 }
 

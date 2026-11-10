@@ -3,7 +3,13 @@ import { Link } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
 import { RoomThumb } from '../../components/RoomThumb'
 import { EmptyState, StatusBadge } from '../../components/ui'
-import { getConflicts, isPast, toMinutes, toTime } from '../../lib/availability'
+import { toMinutes, toTime } from '../../lib/availability'
+import {
+  campusClosedReason,
+  getRoomAvailability,
+  operatingHoursLabel,
+  type AvailabilityState,
+} from '../../lib/campus-rules'
 import { ROOM_CATEGORIES, categoryFor, categoryMeta } from '../../lib/categories'
 import {
   formatDateLong,
@@ -13,7 +19,7 @@ import {
 } from '../../lib/format'
 import { roomCapacity, roomCode, roomLocation, roomSearchText } from '../../lib/room-display'
 import { useCurrentUser, useStore } from '../../lib/store'
-import type { Reservation, Room, RoomCategory } from '../../lib/types'
+import type { CampusSettings, RoomCategory } from '../../lib/types'
 
 type CategoryFilter = 'all' | RoomCategory
 
@@ -25,20 +31,15 @@ interface SearchFilters {
   category: CategoryFilter
 }
 
-type AvailabilityState = 'free' | 'busy' | 'closed' | 'past'
-
-interface RoomAvailability {
-  state: AvailabilityState
-  label: string
-  pendingCount: number
-}
-
-function initialFilters(): SearchFilters {
+function initialFilters(settings: CampusSettings): SearchFilters {
   const now = new Date()
   const minutes = now.getHours() * 60 + now.getMinutes()
+  const open = toMinutes(settings.openTime)
+  const close = toMinutes(settings.closeTime)
+  const latestStart = Math.max(open, close - 120)
   const roundedStart = Math.min(
-    19 * 60 + 30,
-    Math.max(8 * 60, Math.ceil((minutes + 15) / 30) * 30),
+    latestStart,
+    Math.max(open, Math.ceil((minutes + 15) / 30) * 30),
   )
 
   // Default to today's date, with the next usable two-hour window.
@@ -46,42 +47,9 @@ function initialFilters(): SearchFilters {
     query: '',
     date: todayISO(),
     start: toTime(roundedStart),
-    end: toTime(Math.min(roundedStart + 120, 20 * 60)),
+    end: toTime(Math.min(close, roundedStart + 120)),
     category: 'all',
   }
-}
-
-function roomAvailability(
-  room: Room,
-  reservations: Reservation[],
-  date: string,
-  start: string,
-  end: string,
-): RoomAvailability {
-  if (!date || !start || !end || toMinutes(end) <= toMinutes(start)) {
-    return { state: 'past', label: 'Pilih waktu yang valid', pendingCount: 0 }
-  }
-  if (isPast(date, end)) {
-    return { state: 'past', label: 'Waktu lewat', pendingCount: 0 }
-  }
-  if (toMinutes(start) < toMinutes(room.open) || toMinutes(end) > toMinutes(room.close)) {
-    return {
-      state: 'closed',
-      label: 'Di luar jam',
-      pendingCount: 0,
-    }
-  }
-  const pending = getConflicts(reservations, room.id, date, start, end, { status: 'pending' })
-  const conflicts = getConflicts(reservations, room.id, date, start, end)
-  if (conflicts.length > 0) {
-    const first = conflicts[0]!
-    return {
-      state: 'busy',
-      label: `Bentrok ${formatTimeRange(first.start, first.end)}`,
-      pendingCount: pending.length,
-    }
-  }
-  return { state: 'free', label: 'Tersedia', pendingCount: pending.length }
 }
 
 export function StudentDashboard() {
@@ -89,8 +57,8 @@ export function StudentDashboard() {
   const user = useCurrentUser()
   const today = todayISO()
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const [filters, setFilters] = useState<SearchFilters>(initialFilters)
-  const [applied, setApplied] = useState<SearchFilters>(initialFilters)
+  const [filters, setFilters] = useState<SearchFilters>(() => initialFilters(state.settings))
+  const [applied, setApplied] = useState<SearchFilters>(() => initialFilters(state.settings))
   const [searchError, setSearchError] = useState<string | null>(null)
 
   const myReservations = useMemo(
@@ -129,15 +97,18 @@ export function StudentDashboard() {
     const order: Record<AvailabilityState, number> = {
       free: 0,
       busy: 1,
-      closed: 2,
-      past: 3,
+      outside: 2,
+      closed: 3,
+      past: 4,
+      invalid: 5,
     }
     return filteredRooms
       .map((room) => ({
         room,
-        availability: roomAvailability(
-          room,
+        availability: getRoomAvailability(
+          state.settings,
           state.reservations,
+          room,
           applied.date,
           applied.start,
           applied.end,
@@ -148,15 +119,28 @@ export function StudentDashboard() {
           order[a.availability.state] - order[b.availability.state] ||
           a.room.name.localeCompare(b.room.name, 'id'),
       )
-  }, [filteredRooms, state.reservations, applied.date, applied.start, applied.end])
+  }, [filteredRooms, state.settings, state.reservations, applied.date, applied.start, applied.end])
 
   const availableCount = roomResults.filter(
     (result) => result.availability.state === 'free',
   ).length
   const unavailableCount = roomResults.length - availableCount
+  const closedCount = roomResults.filter(
+    (result) => result.availability.state === 'closed',
+  ).length
+  const outsideCount = roomResults.filter(
+    (result) => result.availability.state === 'outside',
+  ).length
   const pendingRoomCount = roomResults.filter(
     (result) => result.availability.pendingCount > 0,
   ).length
+  const campusNotice = campusClosedReason(state.settings, applied.date)
+  const outsideHoursNotice =
+    !campusNotice &&
+    outsideCount > 0 &&
+    (toMinutes(applied.start) < toMinutes(state.settings.openTime) ||
+      toMinutes(applied.end) > toMinutes(state.settings.closeTime) ||
+      toMinutes(applied.end) <= toMinutes(applied.start))
 
   const pendingCount = myReservations.filter((reservation) => reservation.status === 'pending').length
   const approvedCount = myReservations.filter((reservation) => reservation.status === 'approved').length
@@ -215,7 +199,7 @@ export function StudentDashboard() {
   }
 
   const resetSearch = () => {
-    const next = initialFilters()
+    const next = initialFilters(state.settings)
     setFilters(next)
     setApplied(next)
     setSearchError(null)
@@ -282,8 +266,9 @@ export function StudentDashboard() {
             </div>
             <p className="campus-search-note">
               <Icon name="info" size={15} />
-              Reservasi yang disetujui membuat ruangan tidak tersedia. Pengajuan yang menunggu
-              ditandai sebagai potensi bentrok.
+              Jam layanan {operatingHoursLabel(state.settings)}. Minggu dan hari libur kampus
+              tutup. Reservasi yang disetujui membuat ruangan tidak tersedia; pengajuan yang
+              menunggu ditandai sebagai potensi bentrok.
             </p>
           </div>
 
@@ -316,8 +301,8 @@ export function StudentDashboard() {
               <input
                 type="time"
                 value={filters.start}
-                min="08:00"
-                max="20:00"
+                min={state.settings.openTime}
+                max={state.settings.closeTime}
                 step={1800}
                 onChange={(event) => updateFilter({ start: event.target.value })}
               />
@@ -327,8 +312,8 @@ export function StudentDashboard() {
               <input
                 type="time"
                 value={filters.end}
-                min="08:00"
-                max="20:00"
+                min={state.settings.openTime}
+                max={state.settings.closeTime}
                 step={1800}
                 onChange={(event) => updateFilter({ end: event.target.value })}
               />
@@ -359,6 +344,22 @@ export function StudentDashboard() {
             <p className="campus-search-error" id="campus-search-error" role="alert">
               <Icon name="alert" size={15} />
               {searchError}
+            </p>
+          ) : null}
+
+          {campusNotice ? (
+            <p className="notice notice-error" role="status">
+              <Icon name="alert" size={16} />
+              {campusNotice}
+            </p>
+          ) : null}
+
+          {outsideHoursNotice ? (
+            <p className="notice notice-warning" role="status">
+              <Icon name="clock" size={16} />
+              Waktu yang dipilih berada di luar jam operasional kampus (
+              {operatingHoursLabel(state.settings)}). Pilih waktu lain untuk mengajukan
+              peminjaman.
             </p>
           ) : null}
         </section>
@@ -413,6 +414,16 @@ export function StudentDashboard() {
             <span className="availability-stat is-busy">
               <strong>{unavailableCount}</strong> tidak tersedia
             </span>
+            {closedCount > 0 ? (
+              <span className="availability-stat is-closed">
+                <strong>{closedCount}</strong> kampus tutup
+              </span>
+            ) : null}
+            {outsideCount > 0 ? (
+              <span className="availability-stat is-outside">
+                <strong>{outsideCount}</strong> di luar jam operasional
+              </span>
+            ) : null}
             {pendingRoomCount > 0 ? (
               <span className="availability-stat is-pending">
                 <strong>{pendingRoomCount}</strong> ruang punya pengajuan menunggu
@@ -463,7 +474,13 @@ export function StudentDashboard() {
                           <Link to={`/app/ruang/${room.id}`}>{room.name}</Link>
                         </h3>
                       </div>
-                      <span className={`room-availability is-${availability.state}`}>
+                      <span
+                        className={`room-availability is-${availability.state}`}
+                        title={availability.detail ?? availability.reason}
+                        aria-label={`${availability.label}${
+                          availability.detail ? `, ${availability.detail}` : ''
+                        }`}
+                      >
                         <span className="room-availability-dot" aria-hidden="true" />
                         {availability.label}
                       </span>

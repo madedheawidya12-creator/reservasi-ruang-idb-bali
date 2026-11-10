@@ -4,7 +4,12 @@ import { AvailabilityRibbon } from '../../components/AvailabilityRibbon'
 import { Icon } from '../../components/Icon'
 import { RoomThumb } from '../../components/RoomThumb'
 import { EmptyState, PageHeader } from '../../components/ui'
-import { buildSlots, getConflicts } from '../../lib/availability'
+import { buildSlots, toMinutes, toTime } from '../../lib/availability'
+import {
+  campusClosedReason,
+  getRoomAvailability,
+  operatingHoursLabel,
+} from '../../lib/campus-rules'
 import { formatDateLong, todayISO } from '../../lib/format'
 import { roomCapacity, roomCode, roomFacilities, roomLocation, roomSearchText } from '../../lib/room-display'
 import { useStore } from '../../lib/store'
@@ -13,10 +18,18 @@ export function RoomList() {
   const { state } = useStore()
   const [params, setParams] = useSearchParams()
 
+  const defaultStart = state.settings.openTime
+  const defaultEnd = toTime(
+    Math.min(
+      toMinutes(state.settings.closeTime),
+      toMinutes(state.settings.openTime) + 120,
+    ),
+  )
+
   const [query, setQuery] = useState(params.get('q') ?? '')
   const [date, setDate] = useState(params.get('date') ?? todayISO())
-  const [start, setStart] = useState(params.get('start') ?? '09:00')
-  const [end, setEnd] = useState(params.get('end') ?? '11:00')
+  const [start, setStart] = useState(params.get('start') ?? defaultStart)
+  const [end, setEnd] = useState(params.get('end') ?? defaultEnd)
   const [capacity, setCapacity] = useState(params.get('capacity') ?? '')
   const [facility, setFacility] = useState(params.get('facility') ?? '')
 
@@ -52,12 +65,13 @@ export function RoomList() {
     setCapacity('')
     setFacility('')
     setDate(todayISO())
-    setStart('09:00')
-    setEnd('11:00')
+    setStart(defaultStart)
+    setEnd(defaultEnd)
     setParams(new URLSearchParams(), { replace: true })
   }
 
   const activeFilterCount = [query, capacity, facility].filter(Boolean).length
+  const campusNotice = campusClosedReason(state.settings, date)
 
   return (
     <div className="stack">
@@ -94,11 +108,11 @@ export function RoomList() {
           </label>
           <label>
             <span>Mulai</span>
-            <input type="time" value={start} step={1800} min="08:00" max="20:00" onChange={(event) => setStart(event.target.value)} />
+            <input type="time" value={start} step={1800} min={state.settings.openTime} max={state.settings.closeTime} onChange={(event) => setStart(event.target.value)} />
           </label>
           <label>
             <span>Selesai</span>
-            <input type="time" value={end} step={1800} min="08:00" max="20:00" onChange={(event) => setEnd(event.target.value)} />
+            <input type="time" value={end} step={1800} min={state.settings.openTime} max={state.settings.closeTime} onChange={(event) => setEnd(event.target.value)} />
           </label>
         </div>
         <div className="filter-row filter-row-secondary">
@@ -150,6 +164,18 @@ export function RoomList() {
         </p>
       </div>
 
+      {campusNotice ? (
+        <p className="notice notice-error" role="status">
+          <Icon name="alert" size={16} />
+          {campusNotice}
+        </p>
+      ) : null}
+
+      <p className="muted small">
+        Jam layanan kampus {operatingHoursLabel(state.settings)}. Minggu dan hari libur kampus
+        tutup.
+      </p>
+
       {filtered.length === 0 ? (
         <EmptyState
           icon="search"
@@ -164,10 +190,20 @@ export function RoomList() {
       ) : (
         <div className="room-grid">
           {filtered.map((room) => {
-            const slots = buildSlots(state.reservations, room.id, date)
-            const conflicts = getConflicts(state.reservations, room.id, date, start, end)
+            const slots = buildSlots(state.reservations, room.id, date, {
+              open: state.settings.openTime,
+              close: state.settings.closeTime,
+            })
+            const availability = getRoomAvailability(
+              state.settings,
+              state.reservations,
+              room,
+              date,
+              start,
+              end,
+            )
             const freeSlots = slots.filter((slot) => slot.state === 'free').length
-            const bookable = conflicts.length === 0
+            const bookable = availability.state === 'free'
             return (
               <article className="room-card" key={room.id}>
                 <Link to={`/app/ruang/${room.id}`} className="room-card-media" aria-label={`Lihat detail ${room.name}`}>
@@ -191,13 +227,19 @@ export function RoomList() {
 
                   <div className="room-card-availability">
                     <AvailabilityRibbon slots={slots} compact label={`Ketersediaan ${room.name} pada ${formatDateLong(date)}`} />
-                    <span>{freeSlots} dari 24 slot kosong</span>
+                    <span>{freeSlots} dari {slots.length} slot kosong</span>
                   </div>
 
                   <div className="room-card-foot">
-                    <span className={`slot-state ${bookable ? 'is-free' : 'is-busy'}`}>
-                      <Icon name={bookable ? 'check' : 'alert'} size={15} />
-                      {bookable ? 'Tersedia di jam ini' : 'Bentrok jadwal'}
+                    <span
+                      className={`slot-state is-${availability.state}`}
+                      title={availability.detail ?? availability.reason}
+                    >
+                      <Icon
+                        name={availability.state === 'free' ? 'check' : 'alert'}
+                        size={15}
+                      />
+                      {availability.label}
                     </span>
                     <div className="room-card-actions">
                       <Link to={`/app/ruang/${room.id}`} className="btn btn-ghost btn-sm">

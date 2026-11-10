@@ -13,6 +13,9 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   room_create: 'Ruang ditambahkan',
   room_update: 'Data ruang diperbarui',
   room_status: 'Status ruang diubah',
+  settings_update: 'Pengaturan kampus diubah',
+  holiday_create: 'Hari libur ditambahkan',
+  holiday_delete: 'Hari libur dihapus',
 }
 
 export function AdminActivity() {
@@ -32,7 +35,7 @@ export function AdminActivity() {
     <div className="stack">
       <PageHeader
         title="Log aktivitas"
-        description="Riwayat perubahan penting: keputusan admin, pembatalan, dan perubahan data ruang."
+        description="Riwayat perubahan penting: keputusan admin, pembatalan, perubahan data ruang, serta pengaturan operasional dan hari libur."
       />
 
       <div className="admin-filters">
@@ -57,6 +60,9 @@ export function AdminActivity() {
             <option value="room_create">Ruang ditambahkan</option>
             <option value="room_update">Data ruang diperbarui</option>
             <option value="room_status">Status ruang diubah</option>
+            <option value="settings_update">Pengaturan kampus diubah</option>
+            <option value="holiday_create">Hari libur ditambahkan</option>
+            <option value="holiday_delete">Hari libur dihapus</option>
           </select>
         </label>
         <span className="results-count">{rows.length} catatan</span>

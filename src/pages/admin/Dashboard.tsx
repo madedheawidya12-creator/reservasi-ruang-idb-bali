@@ -10,6 +10,7 @@ import {
   useToast,
 } from '../../components/ui'
 import { getConflicts } from '../../lib/availability'
+import { validateReservationRequest } from '../../lib/campus-rules'
 import { categoryFor, categoryMeta } from '../../lib/categories'
 import { roomCapacity, roomCode, roomLocation } from '../../lib/room-display'
 import {
@@ -127,6 +128,15 @@ export function AdminDashboard() {
       { ignoreId: decision.reservation.id, status: 'pending' },
     )
   }, [decision, state.reservations])
+
+  const decisionValidation = useMemo(() => {
+    if (!decision || decision.type !== 'approve') return null
+    return validateReservationRequest(state, decision.reservation, {
+      ignoreReservationId: decision.reservation.id,
+    })
+  }, [decision, state])
+
+  const decisionBlocked = Boolean(decisionValidation && !decisionValidation.ok)
 
   const resetFilters = () => {
     setStatusFilter('all')
@@ -575,7 +585,10 @@ export function AdminDashboard() {
               type="button"
               className={`btn ${decision?.type === 'approve' ? 'btn-primary' : 'btn-danger'}`}
               onClick={submitDecision}
-              disabled={decision?.type === 'approve' && decisionConflicts.length > 0}
+              disabled={
+                decision?.type === 'approve' &&
+                (decisionConflicts.length > 0 || decisionBlocked)
+              }
             >
               {decision?.type === 'approve' ? 'Setujui permohonan' : 'Tolak permohonan'}
             </button>
@@ -615,17 +628,21 @@ export function AdminDashboard() {
 
             {decision.type === 'approve' ? (
               <div
-                className={`decision-check ${decisionConflicts.length > 0 ? 'is-conflict' : 'is-clear'}`}
+                className={`decision-check ${
+                  decisionConflicts.length > 0 || decisionBlocked ? 'is-conflict' : 'is-clear'
+                }`}
               >
                 <Icon
-                  name={decisionConflicts.length > 0 ? 'alert' : 'check'}
+                  name={decisionConflicts.length > 0 || decisionBlocked ? 'alert' : 'check'}
                   size={18}
                 />
                 <div>
                   <h3>
                     {decisionConflicts.length > 0
                       ? 'Jadwal bertabrakan'
-                      : 'Tidak ada konflik dengan reservasi yang disetujui'}
+                      : decisionBlocked
+                        ? 'Permohonan belum memenuhi aturan kampus'
+                        : 'Tidak ada konflik dengan reservasi yang disetujui'}
                   </h3>
                   {decisionConflicts.length > 0 ? (
                     <ul>
@@ -636,6 +653,8 @@ export function AdminDashboard() {
                         </li>
                       ))}
                     </ul>
+                  ) : decisionBlocked ? (
+                    <p>{decisionValidation?.error}</p>
                   ) : (
                     <p>Slot ini aman untuk disetujui. Sistem memeriksa ulang saat keputusan disimpan.</p>
                   )}

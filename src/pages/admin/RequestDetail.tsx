@@ -4,6 +4,7 @@ import { Icon } from '../../components/Icon'
 import { RoomThumb } from '../../components/RoomThumb'
 import { EmptyState, Field, Modal, PageHeader, StatusBadge, useToast } from '../../components/ui'
 import { getConflicts } from '../../lib/availability'
+import { validateReservationRequest } from '../../lib/campus-rules'
 import { formatDateLong, formatDateTime, formatTimeRange } from '../../lib/format'
 import { roomCapacity, roomFacilities, roomLocation } from '../../lib/room-display'
 import { useStore } from '../../lib/store'
@@ -46,6 +47,15 @@ export function AdminRequestDetail() {
       { ignoreId: reservation.id, status: 'pending' },
     )
   }, [reservation, state.reservations])
+
+  const approvalValidation = useMemo(() => {
+    if (!reservation) return null
+    return validateReservationRequest(state, reservation, {
+      ignoreReservationId: reservation.id,
+    })
+  }, [reservation, state])
+
+  const approvalBlocked = Boolean(approvalValidation && !approvalValidation.ok)
 
   if (!reservation) {
     return (
@@ -193,13 +203,22 @@ export function AdminRequestDetail() {
             ) : null}
 
             {canDecide ? (
-              <div className={`conflict-check ${conflicts.length > 0 ? 'is-conflict' : 'is-clear'}`}>
-                <Icon name={conflicts.length > 0 ? 'alert' : 'check'} size={18} />
+              <div
+                className={`conflict-check ${
+                  conflicts.length > 0 || approvalBlocked ? 'is-conflict' : 'is-clear'
+                }`}
+              >
+                <Icon
+                  name={conflicts.length > 0 || approvalBlocked ? 'alert' : 'check'}
+                  size={18}
+                />
                 <div>
                   <h3>
                     {conflicts.length > 0
                       ? 'Jadwal bertabrakan'
-                      : 'Tidak ada konflik dengan reservasi yang disetujui'}
+                      : approvalBlocked
+                        ? 'Permohonan belum memenuhi aturan kampus'
+                        : 'Tidak ada konflik dengan reservasi yang disetujui'}
                   </h3>
                   {conflicts.length > 0 ? (
                     <ul>
@@ -210,6 +229,8 @@ export function AdminRequestDetail() {
                         </li>
                       ))}
                     </ul>
+                  ) : approvalBlocked ? (
+                    <p>{approvalValidation?.error}</p>
                   ) : (
                     <p>
                       Slot ini aman untuk disetujui. Sistem akan memeriksa ulang tepat sebelum
@@ -272,16 +293,17 @@ export function AdminRequestDetail() {
                 <button
                   type="button"
                   className="btn btn-primary btn-block"
-                  disabled={conflicts.length > 0}
+                  disabled={conflicts.length > 0 || approvalBlocked}
                   onClick={() => setApproveOpen(true)}
                 >
                   <Icon name="check" size={17} />
                   Setujui permohonan
                 </button>
-                {conflicts.length > 0 ? (
+                {conflicts.length > 0 || approvalBlocked ? (
                   <p className="decision-warning">
-                    Persetujuan diblokir karena jadwal bertabrakan. Pilih tolak dengan alasan, atau minta
-                    pemohon mengganti waktu.
+                    {conflicts.length > 0
+                      ? 'Persetujuan diblokir karena jadwal bertabrakan. Pilih tolak dengan alasan, atau minta pemohon mengganti waktu.'
+                      : approvalValidation?.error}
                   </p>
                 ) : null}
 
@@ -430,7 +452,12 @@ export function AdminRequestDetail() {
             <button type="button" className="btn btn-ghost" onClick={() => setApproveOpen(false)}>
               Batal
             </button>
-            <button type="button" className="btn btn-primary" onClick={() => decide('approved')}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => decide('approved')}
+              disabled={approvalBlocked || conflicts.length > 0}
+            >
               Ya, setujui
             </button>
           </>

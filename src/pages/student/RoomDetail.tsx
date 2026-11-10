@@ -5,6 +5,12 @@ import { Icon } from '../../components/Icon'
 import { RoomThumb } from '../../components/RoomThumb'
 import { EmptyState, PageHeader } from '../../components/ui'
 import { buildSlots, firstFreeRange, getConflicts, isFullDayBlocked } from '../../lib/availability'
+import {
+  campusClosedReason,
+  CONFLICT_MESSAGE,
+  getRoomAvailability,
+  operatingHoursLabel,
+} from '../../lib/campus-rules'
 import { categoryMeta } from '../../lib/categories'
 import { formatDateLong, formatTimeRange, todayISO } from '../../lib/format'
 import { roomCapacity, roomCode, roomLocation, roomSubtitle } from '../../lib/room-display'
@@ -20,8 +26,14 @@ export function RoomDetail() {
   const room = state.rooms.find((candidate) => candidate.id === id)
 
   const slots = useMemo(
-    () => (room ? buildSlots(state.reservations, room.id, date) : []),
-    [room, state.reservations, date],
+    () =>
+      room
+        ? buildSlots(state.reservations, room.id, date, {
+            open: state.settings.openTime,
+            close: state.settings.closeTime,
+          })
+        : [],
+    [room, state.reservations, state.settings.openTime, state.settings.closeTime, date],
   )
 
   if (!room) {
@@ -44,7 +56,16 @@ export function RoomDetail() {
   const range = firstFreeRange(slots)
   const full = isFullDayBlocked(slots)
   const conflicts = getConflicts(state.reservations, room.id, date, start, end)
-  const bookable = conflicts.length === 0 && room.status === 'active'
+  const closedReason = campusClosedReason(state.settings, date)
+  const availability = getRoomAvailability(
+    state.settings,
+    state.reservations,
+    room,
+    date,
+    start,
+    end,
+  )
+  const bookable = availability.state === 'free' && room.status === 'active'
   const daySchedule = state.reservations
     .filter(
       (reservation) =>
@@ -109,9 +130,7 @@ export function RoomDetail() {
                 <dt>
                   <Icon name="clock" size={16} /> Jam layanan
                 </dt>
-                <dd>
-                  {room.open.replace(':', '.')}–{room.close.replace(':', '.')}
-                </dd>
+                <dd>{operatingHoursLabel(state.settings)}</dd>
               </div>
               <div>
                 <dt>
@@ -147,6 +166,7 @@ export function RoomDetail() {
               {room.rules.map((rule) => (
                 <li key={rule}>{rule}</li>
               ))}
+              <li>Peminjaman hanya dapat diajukan pada hari dan jam operasional kampus; Minggu dan hari libur kampus tutup.</li>
               <li>Permohonan yang disetujui tidak dapat dipindahtangankan tanpa persetujuan admin.</li>
             </ol>
           </section>
@@ -160,67 +180,110 @@ export function RoomDetail() {
               <input type="date" value={date} min={todayISO()} onChange={(event) => setDate(event.target.value)} />
             </label>
 
-            <div className="booking-ribbon">
-              <AvailabilityRibbon slots={slots} showAxis label={`Ketersediaan ${room.name} pada ${formatDateLong(date)}`} />
-              <RibbonLegend />
-            </div>
-
-            <p className={`booking-summary ${full ? 'is-busy' : ''}`}>
-              {full
-                ? 'Semua slot pada tanggal ini sudah terpakai.'
-                : range
-                  ? `Slot kosong terdekat: ${range.start.replace(':', '.')}–${range.end.replace(':', '.')}`
-                  : 'Belum ada slot kosong.'}
-            </p>
-
-            <div className="booking-time">
-              <label>
-                <span>Mulai</span>
-                <input type="time" value={start} step={1800} min={room.open} max={room.close} onChange={(event) => setStart(event.target.value)} />
-              </label>
-              <label>
-                <span>Selesai</span>
-                <input type="time" value={end} step={1800} min={room.open} max={room.close} onChange={(event) => setEnd(event.target.value)} />
-              </label>
-            </div>
-
-            {conflicts.length > 0 ? (
-              <p className="notice notice-error">
+            {closedReason ? (
+              <p className="notice notice-error" role="status">
                 <Icon name="alert" size={16} />
-                Slot ini sudah terpakai. Pilih waktu lain atau lihat jadwal di bawah.
+                {closedReason}
               </p>
-            ) : null}
-
-            {bookable ? (
-              <Link
-                to={`/app/reservasi/baru?roomId=${room.id}&date=${date}&start=${start}&end=${end}`}
-                className="btn btn-primary btn-block"
-              >
-                Ajukan Peminjaman
-              </Link>
-            ) : room.status === 'inactive' ? (
-              <button type="button" className="btn btn-primary btn-block" disabled>
-                Ruang dinonaktifkan
-              </button>
-            ) : range ? (
-              <button
-                type="button"
-                className="btn btn-primary btn-block"
-                onClick={() => {
-                  setStart(range.start)
-                  setEnd(range.end)
-                }}
-              >
-                Gunakan slot {range.start.replace(':', '.')}–{range.end.replace(':', '.')}
-              </button>
             ) : (
-              <button type="button" className="btn btn-primary btn-block" disabled>
-                Tanggal ini penuh
-              </button>
+              <>
+                <div className="booking-ribbon">
+                  <AvailabilityRibbon slots={slots} showAxis label={`Ketersediaan ${room.name} pada ${formatDateLong(date)}`} />
+                  <RibbonLegend />
+                </div>
+
+                <p className={`booking-summary ${full ? 'is-busy' : ''}`}>
+                  {full
+                    ? 'Semua slot pada tanggal ini sudah terpakai.'
+                    : range
+                      ? `Slot kosong terdekat: ${range.start.replace(':', '.')}–${range.end.replace(':', '.')}`
+                      : 'Belum ada slot kosong.'}
+                </p>
+
+                <div className="booking-time">
+                  <label>
+                    <span>Mulai</span>
+                    <input
+                      type="time"
+                      value={start}
+                      step={1800}
+                      min={state.settings.openTime}
+                      max={state.settings.closeTime}
+                      onChange={(event) => setStart(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Selesai</span>
+                    <input
+                      type="time"
+                      value={end}
+                      step={1800}
+                      min={state.settings.openTime}
+                      max={state.settings.closeTime}
+                      onChange={(event) => setEnd(event.target.value)}
+                    />
+                  </label>
+                </div>
+
+                {availability.state === 'busy' || conflicts.length > 0 ? (
+                  <p className="notice notice-error" role="status">
+                    <Icon name="alert" size={16} />
+                    {CONFLICT_MESSAGE}
+                  </p>
+                ) : availability.state === 'outside' ? (
+                  <p className="notice notice-warning" role="status">
+                    <Icon name="clock" size={16} />
+                    {availability.reason ??
+                      `Pilih waktu di dalam jam operasional kampus (${operatingHoursLabel(
+                        state.settings,
+                      )}).`}
+                  </p>
+                ) : availability.state === 'past' || availability.state === 'invalid' ? (
+                  <p className="notice notice-warning" role="status">
+                    <Icon name="clock" size={16} />
+                    {availability.state === 'past'
+                      ? 'Tanggal dan waktu ini sudah lewat. Pilih jadwal lain.'
+                      : 'Lengkapi tanggal dan waktu terlebih dahulu.'}
+                  </p>
+                ) : null}
+
+                {bookable ? (
+                  <Link
+                    to={`/app/reservasi/baru?roomId=${room.id}&date=${date}&start=${start}&end=${end}`}
+                    className="btn btn-primary btn-block"
+                  >
+                    Ajukan Peminjaman
+                  </Link>
+                ) : room.status === 'inactive' ? (
+                  <button type="button" className="btn btn-primary btn-block" disabled>
+                    Ruang dinonaktifkan
+                  </button>
+                ) : availability.state === 'past' || availability.state === 'invalid' ? (
+                  <button type="button" className="btn btn-primary btn-block" disabled>
+                    Pilih jadwal lain
+                  </button>
+                ) : range ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-block"
+                    onClick={() => {
+                      setStart(range.start)
+                      setEnd(range.end)
+                    }}
+                  >
+                    Gunakan slot {range.start.replace(':', '.')}–{range.end.replace(':', '.')}
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-primary btn-block" disabled>
+                    Tanggal ini penuh
+                  </button>
+                )}
+                <p className="booking-note">
+                  Jam layanan kampus {operatingHoursLabel(state.settings)}. Pengajuan akan berstatus
+                  menunggu sampai admin kampus memberi keputusan.
+                </p>
+              </>
             )}
-            <p className="booking-note">
-              Pengajuan akan berstatus menunggu sampai admin kampus memberi keputusan.
-            </p>
           </section>
 
           <section className="panel">
